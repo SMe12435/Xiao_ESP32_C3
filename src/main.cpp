@@ -34,7 +34,7 @@
 #define DMA_BUF_LEN       128
 #define AUDIO_CHUNK_SAMPLES 512
 
-#define DEFAULT_SERVER_URL "ws://15.206.232.216:8889"
+#define DEFAULT_SERVER_URL "ws://15.206.232.216:8888"
 
 #ifndef FW_VERSION
 #define FW_VERSION "1.0.0"
@@ -145,7 +145,7 @@ static String deviceMAC;
 static String pairingCode;
 
 static String serverHost;
-static uint16_t serverPort = 8889;
+static uint16_t serverPort = 8888;
 static String serverPath;
 
 static bool wsConnected   = false;
@@ -427,7 +427,7 @@ details summary{cursor:pointer;color:#aaa;font-size:.9em;margin-top:8px}
 <input id="pass" type="password" placeholder="WiFi password">
 <details><summary>Advanced</summary>
 <label>Server URL</label>
-<input id="server" value="ws://15.206.232.216:8889">
+<input id="server" value="ws://15.206.232.216:8888">
 </details>
 </div>
 <div id="err1" class="err hidden"></div>

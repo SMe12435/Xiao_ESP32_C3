@@ -1,0 +1,1613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>M5 Audio Platform</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg: #0f1117;
+            --surface: #1a1d27;
+            --surface2: #242736;
+            --border: #2e3144;
+            --text: #e4e6ef;
+            --text-muted: #8b8fa3;
+            --primary: #6c63ff;
+            --primary-hover: #5a52e0;
+            --accent: #00d4aa;
+            --danger: #ff4d6a;
+            --warning: #ffb84d;
+            --radius: 12px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+
+        /* ── Header ── */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 0;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 32px;
+        }
+        header h1 { font-size: 20px; font-weight: 600; }
+        header .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        /* ── Auth Form ── */
+        .auth-card {
+            max-width: 400px;
+            margin: 80px auto;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 40px 32px;
+        }
+        .auth-card h2 {
+            font-size: 24px;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+        .auth-card p {
+            color: var(--text-muted);
+            text-align: center;
+            margin-bottom: 24px;
+            font-size: 14px;
+        }
+        .form-group { margin-bottom: 16px; }
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+        input[type="text"], input[type="email"], input[type="password"] {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 15px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        input:focus { border-color: var(--primary); }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            width: 100%;
+        }
+        .btn-primary:hover { background: var(--primary-hover); }
+        .btn-sm { padding: 8px 16px; font-size: 13px; width: auto; }
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+        }
+        .btn-outline:hover { border-color: var(--primary); color: var(--primary); }
+        .btn-danger { background: var(--danger); color: white; }
+
+        .auth-toggle {
+            text-align: center;
+            margin-top: 16px;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+        .auth-toggle a {
+            color: var(--primary);
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .auth-toggle a:hover { text-decoration: underline; }
+
+        .error-msg {
+            background: rgba(255,77,106,0.1);
+            border: 1px solid var(--danger);
+            color: var(--danger);
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 13px;
+            margin-bottom: 16px;
+            display: none;
+        }
+
+        /* ── Dashboard ── */
+        .tabs {
+            display: flex;
+            gap: 4px;
+            background: var(--surface);
+            padding: 4px;
+            border-radius: 10px;
+            margin-bottom: 24px;
+        }
+        .tab {
+            flex: 1;
+            padding: 10px;
+            text-align: center;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            color: var(--text-muted);
+            transition: all 0.2s;
+            border: none;
+            background: transparent;
+        }
+        .tab.active { background: var(--primary); color: white; }
+        .tab:hover:not(.active) { color: var(--text); }
+
+        .panel { display: none; }
+        .panel.active { display: block; }
+
+        /* ── Live Panel ── */
+        .live-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            background: var(--surface);
+            border-radius: var(--radius);
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+        .status-dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            background: var(--text-muted);
+        }
+        .status-dot.connected { background: var(--accent); }
+        .status-dot.streaming { background: var(--danger); animation: pulse 1s infinite; }
+        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+
+        .live-transcript {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px;
+            min-height: 200px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-size: 15px;
+            line-height: 1.7;
+            white-space: pre-wrap;
+        }
+        .live-transcript .placeholder {
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        .rms-bar-container {
+            height: 6px;
+            background: var(--surface2);
+            border-radius: 3px;
+            margin-top: 12px;
+            overflow: hidden;
+        }
+        .rms-bar {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 3px;
+            width: 0%;
+            transition: width 0.15s;
+        }
+
+        /* ── Pair Panel ── */
+        .pair-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 32px;
+            text-align: center;
+            max-width: 440px;
+            margin: 0 auto;
+        }
+        .pair-card h3 { font-size: 18px; margin-bottom: 8px; }
+        .pair-card p { color: var(--text-muted); font-size: 14px; margin-bottom: 24px; }
+        .pair-input {
+            font-size: 28px !important;
+            text-align: center;
+            letter-spacing: 8px;
+            text-transform: uppercase;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            max-width: 280px;
+            margin: 0 auto 16px;
+        }
+        .pair-success {
+            color: var(--accent);
+            font-size: 14px;
+            margin-top: 12px;
+            display: none;
+        }
+
+        /* ── Sessions Panel ── */
+        .session-list { display: flex; flex-direction: column; gap: 8px; }
+        .session-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px 20px;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        .session-card:hover { border-color: var(--primary); }
+        .session-card .session-time {
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .session-card .session-meta {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+        .session-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .session-badge.streaming { background: rgba(255,77,106,0.15); color: var(--danger); }
+        .session-badge.processing { background: rgba(255,184,77,0.15); color: var(--warning); }
+        .session-badge.done { background: rgba(0,212,170,0.15); color: var(--accent); }
+
+        /* ── Session Detail ── */
+        .detail-back {
+            font-size: 14px;
+            color: var(--primary);
+            cursor: pointer;
+            margin-bottom: 16px;
+            display: inline-block;
+        }
+        .detail-back:hover { text-decoration: underline; }
+
+        .detail-section {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        .detail-section h4 {
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+        .detail-section .content {
+            font-size: 15px;
+            line-height: 1.7;
+        }
+        .note-item {
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 14px;
+        }
+        .note-item:last-child { border-bottom: none; }
+        .note-type {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-right: 8px;
+        }
+        .note-type.summary { background: rgba(108,99,255,0.15); color: var(--primary); }
+        .note-type.action_item { background: rgba(255,77,106,0.15); color: var(--danger); }
+        .note-type.decision { background: rgba(255,184,77,0.15); color: var(--warning); }
+        .note-type.note { background: rgba(0,212,170,0.15); color: var(--accent); }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-muted);
+        }
+        .empty-state p { margin-top: 8px; font-size: 14px; }
+
+        .hidden { display: none !important; }
+
+        /* ── Doodle Studio ── */
+        .doodle-layout {
+            display: grid;
+            grid-template-columns: 1fr 220px;
+            gap: 16px;
+        }
+        @media (max-width: 700px) {
+            .doodle-layout { grid-template-columns: 1fr; }
+        }
+        .doodle-main {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px;
+        }
+        .doodle-toolbar {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .doodle-toolbar .tool-btn {
+            width: 36px; height: 36px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--surface2);
+            color: var(--text);
+            font-size: 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: border-color 0.15s;
+        }
+        .doodle-toolbar .tool-btn:hover { border-color: var(--primary); }
+        .doodle-toolbar .tool-btn.active {
+            border-color: var(--primary);
+            background: var(--primary);
+            color: white;
+        }
+        .doodle-toolbar .sep {
+            width: 1px;
+            height: 24px;
+            background: var(--border);
+            margin: 0 4px;
+        }
+        .canvas-wrap {
+            position: relative;
+            overflow: auto;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #doodle-canvas { cursor: crosshair; display: block; image-rendering: pixelated; }
+        .doodle-sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .doodle-section {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 12px;
+        }
+        .doodle-section h4 {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+        .color-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 4px;
+        }
+        .color-swatch {
+            width: 100%;
+            aspect-ratio: 1;
+            border-radius: 4px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: border-color 0.15s, transform 0.1s;
+        }
+        .color-swatch:hover { transform: scale(1.1); }
+        .color-swatch.active { border-color: white; }
+        .custom-color-wrap {
+            display: flex;
+            gap: 6px;
+            margin-top: 6px;
+            align-items: center;
+        }
+        .custom-color-wrap input[type="color"] {
+            width: 32px; height: 28px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            padding: 0;
+        }
+        .custom-color-wrap span { font-size: 11px; color: var(--text-muted); }
+        .stamp-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 4px;
+        }
+        .stamp-btn {
+            aspect-ratio: 1;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--surface2);
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: border-color 0.15s;
+        }
+        .stamp-btn:hover { border-color: var(--primary); }
+        .stamp-btn.active { border-color: var(--primary); background: var(--primary); }
+        .doodle-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .doodle-actions .btn { font-size: 13px; width: 100%; }
+        .gallery-list {
+            max-height: 160px;
+            overflow-y: auto;
+        }
+        .gallery-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 12px;
+        }
+        .gallery-item:last-child { border-bottom: none; }
+        .gallery-item span { cursor: pointer; color: var(--primary); }
+        .gallery-item span:hover { text-decoration: underline; }
+        .gallery-item button {
+            background: none;
+            border: none;
+            color: var(--danger);
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .doodle-preview {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .preview-device {
+            width: 120px;
+            height: 68px;
+            border: 2px solid var(--text-muted);
+            border-radius: 8px;
+            overflow: hidden;
+            background: #000;
+        }
+        .preview-device canvas {
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+        }
+        .doodle-status {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-align: center;
+            min-height: 18px;
+        }
+        .doodle-status.success { color: var(--accent); }
+        .doodle-status.error { color: var(--danger); }
+    </style>
+</head>
+<body>
+
+<!-- ════════ Auth View ════════ -->
+<div id="auth-view">
+    <div class="auth-card">
+        <h2 id="auth-title">Sign In</h2>
+        <p id="auth-subtitle">Access your audio recordings and notes</p>
+        <div id="auth-error" class="error-msg"></div>
+        <form id="auth-form">
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="auth-email" required placeholder="you@example.com">
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="auth-password" required placeholder="Enter password">
+            </div>
+            <button type="submit" class="btn btn-primary" id="auth-submit">Sign In</button>
+        </form>
+        <div class="auth-toggle">
+            <span id="auth-toggle-text">Don't have an account?</span>
+            <a id="auth-toggle-link" onclick="toggleAuthMode()">Create one</a>
+        </div>
+    </div>
+</div>
+
+<!-- ════════ Dashboard View ════════ -->
+<div id="dashboard-view" class="hidden">
+    <div class="container">
+        <header>
+            <h1>M5 Audio</h1>
+            <div class="user-info">
+                <span id="user-email"></span>
+                <button class="btn btn-sm btn-outline" onclick="logout()">Sign Out</button>
+            </div>
+        </header>
+
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('live')">Live</button>
+            <button class="tab" onclick="switchTab('doodle')">Doodle</button>
+            <button class="tab" onclick="switchTab('pair')">Pair Device</button>
+            <button class="tab" onclick="switchTab('sessions')">Sessions</button>
+            <button class="tab" onclick="switchTab('settings')">Settings</button>
+        </div>
+
+        <!-- Live Tab -->
+        <div id="panel-live" class="panel active">
+            <div class="live-status">
+                <div class="status-dot" id="ws-status-dot"></div>
+                <span id="ws-status-text">Connecting...</span>
+                <span style="margin-left:auto; font-size:13px; color:var(--text-muted)" id="stream-info"></span>
+            </div>
+            <div class="rms-bar-container">
+                <div class="rms-bar" id="rms-bar"></div>
+            </div>
+            <div class="live-transcript" id="live-transcript">
+                <span class="placeholder">Waiting for audio stream from device...</span>
+            </div>
+        </div>
+
+        <!-- Doodle Tab -->
+        <div id="panel-doodle" class="panel">
+            <div class="doodle-layout">
+                <div class="doodle-main">
+                    <div class="doodle-toolbar">
+                        <button class="tool-btn active" data-tool="pencil" title="Pencil">&#9998;</button>
+                        <button class="tool-btn" data-tool="eraser" title="Eraser">&#9003;</button>
+                        <button class="tool-btn" data-tool="fill" title="Fill Bucket">&#9691;</button>
+                        <button class="tool-btn" data-tool="line" title="Line">&#9585;</button>
+                        <button class="tool-btn" data-tool="rect" title="Rectangle">&#9634;</button>
+                        <div class="sep"></div>
+                        <button class="tool-btn" onclick="doodleUndo()" title="Undo">&#8630;</button>
+                        <button class="tool-btn" onclick="doodleClear()" title="Clear">&#10005;</button>
+                        <div class="sep"></div>
+                        <select id="doodle-device" style="padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;outline:none">
+                            <option value="">Select device</option>
+                        </select>
+                    </div>
+                    <div class="canvas-wrap">
+                        <canvas id="doodle-canvas" width="576" height="324"></canvas>
+                    </div>
+                    <div class="doodle-status" id="doodle-status"></div>
+                </div>
+                <div class="doodle-sidebar">
+                    <div class="doodle-section">
+                        <h4>Device Preview</h4>
+                        <div class="doodle-preview">
+                            <div class="preview-device">
+                                <canvas id="doodle-preview-canvas" width="48" height="27"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="doodle-section">
+                        <h4>Colors</h4>
+                        <div class="color-grid" id="color-grid"></div>
+                        <div class="custom-color-wrap">
+                            <input type="color" id="custom-color" value="#ff0000">
+                            <span>Custom</span>
+                        </div>
+                    </div>
+                    <div class="doodle-section">
+                        <h4>Stamps</h4>
+                        <div class="stamp-grid" id="stamp-grid"></div>
+                    </div>
+                    <div class="doodle-section">
+                        <h4>Actions</h4>
+                        <div class="doodle-actions">
+                            <button class="btn btn-primary btn-sm" onclick="sendDoodleToDevice()">Send to Device</button>
+                            <button class="btn btn-sm btn-outline" onclick="saveDoodle()">Save to Gallery</button>
+                        </div>
+                    </div>
+                    <div class="doodle-section">
+                        <h4>Gallery</h4>
+                        <div class="gallery-list" id="gallery-list">
+                            <div style="color:var(--text-muted);font-size:12px">No saved doodles yet.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pair Tab -->
+        <div id="panel-pair" class="panel">
+            <div class="pair-card">
+                <h3>Pair Your Device</h3>
+                <p>Enter the 6-character code shown on your M5StickC screen</p>
+                <input type="text" class="pair-input" id="pair-code-input"
+                       maxlength="6" placeholder="------" autocomplete="off">
+                <br>
+                <button class="btn btn-primary btn-sm" onclick="pairDevice()" id="pair-btn">Pair Device</button>
+                <div class="pair-success" id="pair-success">Device paired successfully!</div>
+                <div id="pair-error" class="error-msg" style="margin-top:12px"></div>
+            </div>
+        </div>
+
+        <!-- Sessions Tab -->
+        <div id="panel-sessions" class="panel">
+            <div id="sessions-list" class="session-list"></div>
+            <div id="sessions-empty" class="empty-state hidden">
+                <p>No recording sessions yet.</p>
+                <p>Press Button A on your M5StickC to start recording.</p>
+            </div>
+        </div>
+
+        <!-- Settings Tab -->
+        <div id="panel-settings" class="panel">
+            <div class="pair-card" style="text-align:left">
+                <h3 style="text-align:center">Device WiFi Settings</h3>
+                <p style="text-align:center">Push new WiFi credentials to your connected device</p>
+                <div class="form-group">
+                    <label>Device</label>
+                    <select id="settings-device" style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:15px;outline:none">
+                        <option value="">Loading devices...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>WiFi Network Name (SSID)</label>
+                    <input type="text" id="settings-ssid" placeholder="e.g. MyHomeWiFi">
+                </div>
+                <div class="form-group">
+                    <label>WiFi Password</label>
+                    <input type="password" id="settings-password" placeholder="WiFi password">
+                </div>
+                <button class="btn btn-primary" onclick="sendWifiUpdate()" id="settings-btn" style="margin-top:8px">Send to Device</button>
+                <div id="settings-success" class="pair-success" style="text-align:center">WiFi credentials sent! Device will reboot.</div>
+                <div id="settings-error" class="error-msg" style="margin-top:12px"></div>
+            </div>
+        </div>
+
+        <!-- Session Detail (overlay) -->
+        <div id="panel-detail" class="panel">
+            <span class="detail-back" onclick="backToSessions()">&#8592; Back to Sessions</span>
+            <div id="detail-content"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+const API_BASE = window.location.origin;
+let authToken = localStorage.getItem('token');
+let isRegisterMode = false;
+let userWs = null;
+let currentTranscript = '';
+
+// ── Auth ──
+function toggleAuthMode() {
+    isRegisterMode = !isRegisterMode;
+    document.getElementById('auth-title').textContent = isRegisterMode ? 'Create Account' : 'Sign In';
+    document.getElementById('auth-subtitle').textContent = isRegisterMode
+        ? 'Start capturing and processing audio' : 'Access your audio recordings and notes';
+    document.getElementById('auth-submit').textContent = isRegisterMode ? 'Create Account' : 'Sign In';
+    document.getElementById('auth-toggle-text').textContent = isRegisterMode
+        ? 'Already have an account?' : "Don't have an account?";
+    document.getElementById('auth-toggle-link').textContent = isRegisterMode ? 'Sign in' : 'Create one';
+    document.getElementById('auth-error').style.display = 'none';
+}
+
+document.getElementById('auth-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('auth-email').value;
+    const password = document.getElementById('auth-password').value;
+    const endpoint = isRegisterMode ? '/api/auth/register' : '/api/auth/login';
+
+    try {
+        const res = await fetch(API_BASE + endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Auth failed');
+
+        authToken = data.access_token;
+        localStorage.setItem('token', authToken);
+        showDashboard();
+    } catch (err) {
+        const el = document.getElementById('auth-error');
+        el.textContent = err.message;
+        el.style.display = 'block';
+    }
+});
+
+function logout() {
+    authToken = null;
+    localStorage.removeItem('token');
+    if (userWs) userWs.close();
+    document.getElementById('auth-view').classList.remove('hidden');
+    document.getElementById('dashboard-view').classList.add('hidden');
+}
+
+// ── Dashboard Init ──
+async function showDashboard() {
+    try {
+        const res = await fetch(API_BASE + '/api/auth/me', {
+            headers: { 'Authorization': 'Bearer ' + authToken },
+        });
+        if (!res.ok) { logout(); return; }
+        const user = await res.json();
+        document.getElementById('user-email').textContent = user.email;
+    } catch { logout(); return; }
+
+    document.getElementById('auth-view').classList.add('hidden');
+    document.getElementById('dashboard-view').classList.remove('hidden');
+
+    connectUserWs();
+    loadSessions();
+}
+
+// ── Tabs ──
+const TAB_NAMES = ['live','doodle','pair','sessions','settings'];
+function switchTab(name) {
+    document.querySelectorAll('.tab').forEach((t, i) => {
+        t.classList.toggle('active', TAB_NAMES[i] === name);
+    });
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    const panel = document.getElementById('panel-' + name);
+    if (panel) panel.classList.add('active');
+    if (name === 'sessions') loadSessions();
+    if (name === 'settings') loadDevicesForSettings();
+    if (name === 'doodle') initDoodleTab();
+}
+
+// ── User WebSocket ──
+function connectUserWs() {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws/user?token=${authToken}`;
+
+    userWs = new WebSocket(wsUrl);
+    const dot = document.getElementById('ws-status-dot');
+    const text = document.getElementById('ws-status-text');
+
+    userWs.onopen = () => {
+        dot.className = 'status-dot connected';
+        text.textContent = 'Connected — waiting for device';
+    };
+
+    userWs.onclose = () => {
+        dot.className = 'status-dot';
+        text.textContent = 'Disconnected';
+        setTimeout(connectUserWs, 3000);
+    };
+
+    userWs.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+        handleWsMessage(msg);
+    };
+
+    // Keepalive
+    setInterval(() => {
+        if (userWs && userWs.readyState === WebSocket.OPEN) {
+            userWs.send(JSON.stringify({ type: 'ping' }));
+        }
+    }, 30000);
+}
+
+function handleWsMessage(msg) {
+    const dot = document.getElementById('ws-status-dot');
+    const text = document.getElementById('ws-status-text');
+    const info = document.getElementById('stream-info');
+    const transcript = document.getElementById('live-transcript');
+    const rmsBar = document.getElementById('rms-bar');
+
+    switch (msg.type) {
+        case 'stream_start':
+            dot.className = 'status-dot streaming';
+            text.textContent = 'Recording in progress';
+            info.textContent = '';
+            currentTranscript = '';
+            transcript.innerHTML = '<span class="placeholder">Listening...</span>';
+            rmsBar.style.width = '0%';
+            break;
+
+        case 'stream_progress':
+            info.textContent = `${msg.duration}s — ${msg.chunks} chunks`;
+            rmsBar.style.width = Math.min(100, msg.rms / 100) + '%';
+            break;
+
+        case 'stream_end':
+            dot.className = 'status-dot connected';
+            text.textContent = 'Processing transcript...';
+            info.textContent = `${msg.duration}s recorded`;
+            rmsBar.style.width = '0%';
+            break;
+
+        case 'transcript_final':
+            currentTranscript = msg.text;
+            transcript.innerHTML = '';
+            transcript.textContent = msg.text || '(no speech detected)';
+            text.textContent = 'Extracting notes...';
+            break;
+
+        case 'session_processed':
+            text.textContent = 'Connected — waiting for device';
+            let html = '';
+            if (msg.summary) {
+                html += `<strong>Summary:</strong> ${msg.summary}\n\n`;
+            }
+            if (msg.action_items && msg.action_items.length) {
+                html += `<strong>Action Items:</strong>\n`;
+                msg.action_items.forEach(a => html += `  • ${a}\n`);
+                html += '\n';
+            }
+            if (msg.decisions && msg.decisions.length) {
+                html += `<strong>Decisions:</strong>\n`;
+                msg.decisions.forEach(d => html += `  • ${d}\n`);
+                html += '\n';
+            }
+            if (msg.notes && msg.notes.length) {
+                html += `<strong>Notes:</strong>\n`;
+                msg.notes.forEach(n => html += `  • ${n}\n`);
+            }
+            if (currentTranscript) {
+                html += `\n──────────────\n<strong>Full Transcript:</strong>\n${currentTranscript}`;
+            }
+            transcript.innerHTML = html || transcript.innerHTML;
+            loadSessions();
+            break;
+    }
+}
+
+// ── Pair Device ──
+async function pairDevice() {
+    const code = document.getElementById('pair-code-input').value.trim().toUpperCase();
+    if (code.length !== 6) {
+        showPairError('Please enter the full 6-character code');
+        return;
+    }
+
+    try {
+        const res = await fetch(API_BASE + '/api/devices/pair', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + authToken,
+            },
+            body: JSON.stringify({ code }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Pairing failed');
+
+        document.getElementById('pair-success').style.display = 'block';
+        document.getElementById('pair-error').style.display = 'none';
+        document.getElementById('pair-code-input').value = '';
+    } catch (err) {
+        showPairError(err.message);
+    }
+}
+
+function showPairError(msg) {
+    const el = document.getElementById('pair-error');
+    el.textContent = msg;
+    el.style.display = 'block';
+    document.getElementById('pair-success').style.display = 'none';
+}
+
+// ── Sessions ──
+async function loadSessions() {
+    try {
+        const res = await fetch(API_BASE + '/api/sessions', {
+            headers: { 'Authorization': 'Bearer ' + authToken },
+        });
+        const sessions = await res.json();
+
+        const list = document.getElementById('sessions-list');
+        const empty = document.getElementById('sessions-empty');
+
+        if (sessions.length === 0) {
+            list.innerHTML = '';
+            empty.classList.remove('hidden');
+            return;
+        }
+
+        empty.classList.add('hidden');
+        list.innerHTML = sessions.map(s => `
+            <div class="session-card" onclick="viewSession(${s.id})">
+                <div class="session-time">
+                    ${new Date(s.started_at).toLocaleString()}
+                    <span class="session-badge ${s.status}">${s.status}</span>
+                </div>
+                <div class="session-meta">
+                    ${s.ended_at ? 'Duration: ' + formatDuration(s.started_at, s.ended_at) : 'In progress...'}
+                </div>
+            </div>
+        `).join('');
+    } catch (err) {
+        console.error('Failed to load sessions:', err);
+    }
+}
+
+function formatDuration(start, end) {
+    const ms = new Date(end) - new Date(start);
+    const s = Math.floor(ms / 1000);
+    if (s < 60) return s + 's';
+    return Math.floor(s / 60) + 'm ' + (s % 60) + 's';
+}
+
+async function viewSession(id) {
+    try {
+        const res = await fetch(API_BASE + '/api/sessions/' + id, {
+            headers: { 'Authorization': 'Bearer ' + authToken },
+        });
+        const data = await res.json();
+
+        let html = '';
+
+        if (data.transcript) {
+            html += `<div class="detail-section">
+                <h4>Transcript</h4>
+                <div class="content">${data.transcript}</div>
+            </div>`;
+        }
+
+        if (data.notes && data.notes.length) {
+            html += `<div class="detail-section"><h4>Notes & Actions</h4>`;
+            data.notes.forEach(n => {
+                html += `<div class="note-item">
+                    <span class="note-type ${n.type}">${n.type.replace('_', ' ')}</span>
+                    ${n.content}
+                </div>`;
+            });
+            html += `</div>`;
+        }
+
+        if (!data.transcript && (!data.notes || !data.notes.length)) {
+            html = `<div class="empty-state"><p>No transcript or notes yet.</p>
+                <p>This session may still be processing.</p></div>`;
+        }
+
+        document.getElementById('detail-content').innerHTML = html;
+
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+        document.getElementById('panel-detail').classList.add('active');
+    } catch (err) {
+        console.error('Failed to load session:', err);
+    }
+}
+
+function backToSessions() {
+    switchTab('sessions');
+}
+
+// ── Settings: WiFi Update ──
+async function loadDevicesForSettings() {
+    const sel = document.getElementById('settings-device');
+    try {
+        const res = await fetch(API_BASE + '/api/devices', {
+            headers: { 'Authorization': 'Bearer ' + authToken },
+        });
+        const devices = await res.json();
+        if (devices.length === 0) {
+            sel.innerHTML = '<option value="">No paired devices</option>';
+            return;
+        }
+        sel.innerHTML = devices.map(d =>
+            `<option value="${d.id}">${d.name || d.mac_address}${d.online ? ' (online)' : ' (offline)'}</option>`
+        ).join('');
+    } catch (err) {
+        sel.innerHTML = '<option value="">Failed to load devices</option>';
+    }
+}
+
+async function sendWifiUpdate() {
+    const deviceId = document.getElementById('settings-device').value;
+    const ssid = document.getElementById('settings-ssid').value.trim();
+    const password = document.getElementById('settings-password').value;
+
+    document.getElementById('settings-success').style.display = 'none';
+    document.getElementById('settings-error').style.display = 'none';
+
+    if (!deviceId) { showSettingsError('Please select a device'); return; }
+    if (!ssid) { showSettingsError('Please enter a WiFi network name'); return; }
+
+    const btn = document.getElementById('settings-btn');
+    btn.textContent = 'Sending...';
+    btn.disabled = true;
+
+    try {
+        const res = await fetch(API_BASE + '/api/devices/' + deviceId + '/wifi', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + authToken,
+            },
+            body: JSON.stringify({ ssid, password }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Failed to send WiFi update');
+
+        document.getElementById('settings-success').style.display = 'block';
+        document.getElementById('settings-ssid').value = '';
+        document.getElementById('settings-password').value = '';
+    } catch (err) {
+        showSettingsError(err.message);
+    } finally {
+        btn.textContent = 'Send to Device';
+        btn.disabled = false;
+    }
+}
+
+function showSettingsError(msg) {
+    const el = document.getElementById('settings-error');
+    el.textContent = msg;
+    el.style.display = 'block';
+    document.getElementById('settings-success').style.display = 'none';
+}
+
+// ═══════════════════════════════════════════════════════════
+// Doodle Studio
+// ═══════════════════════════════════════════════════════════
+
+const CW = 48, CH = 27, CELL = 12;
+let doodlePixels = new Array(CW * CH).fill('#000000');
+let doodleHistory = [];
+let doodleTool = 'pencil';
+let doodleColor = '#ffffff';
+let doodleStamp = null;
+let doodleDown = false;
+let doodleLineStart = null;
+let doodleInited = false;
+
+const PALETTE = [
+    '#000000','#ffffff','#ff0000','#ff8800',
+    '#ffdd00','#88ff00','#00cc44','#00ddbb',
+    '#0088ff','#6644ff','#cc44ff','#ff44aa',
+    '#884400','#888888','#444444','#224466',
+];
+
+const STAMPS = {
+    heart: {
+        w:8, h:7, label:'\u2665',
+        data:[
+            0,1,1,0,0,1,1,0,
+            1,1,1,1,1,1,1,1,
+            1,1,1,1,1,1,1,1,
+            1,1,1,1,1,1,1,1,
+            0,1,1,1,1,1,1,0,
+            0,0,1,1,1,1,0,0,
+            0,0,0,1,1,0,0,0,
+        ]
+    },
+    star: {
+        w:7, h:7, label:'\u2605',
+        data:[
+            0,0,0,1,0,0,0,
+            0,0,1,1,1,0,0,
+            1,1,1,1,1,1,1,
+            0,1,1,1,1,1,0,
+            0,1,1,0,1,1,0,
+            1,1,0,0,0,1,1,
+            1,0,0,0,0,0,1,
+        ]
+    },
+    smiley: {
+        w:8, h:8, label:'\u263a',
+        data:[
+            0,0,1,1,1,1,0,0,
+            0,1,0,0,0,0,1,0,
+            1,0,1,0,0,1,0,1,
+            1,0,0,0,0,0,0,1,
+            1,0,1,0,0,1,0,1,
+            1,0,0,1,1,0,0,1,
+            0,1,0,0,0,0,1,0,
+            0,0,1,1,1,1,0,0,
+        ]
+    },
+    thumbsup: {
+        w:7, h:8, label:'\ud83d\udc4d',
+        data:[
+            0,0,0,1,1,0,0,
+            0,0,1,1,0,0,0,
+            0,0,1,1,0,0,0,
+            0,1,1,1,1,1,1,
+            1,1,1,1,1,1,1,
+            1,1,1,1,1,1,1,
+            1,1,1,1,1,1,0,
+            0,1,1,1,1,0,0,
+        ]
+    },
+    music: {
+        w:7, h:8, label:'\u266b',
+        data:[
+            0,0,1,1,1,1,1,
+            0,0,1,0,0,0,1,
+            0,0,1,0,0,0,1,
+            0,0,1,0,0,0,1,
+            0,0,1,0,1,1,1,
+            1,1,1,0,1,1,1,
+            1,1,1,0,1,1,1,
+            0,1,0,0,0,1,0,
+        ]
+    },
+    bolt: {
+        w:5, h:8, label:'\u26a1',
+        data:[
+            0,0,1,1,0,
+            0,1,1,0,0,
+            1,1,1,0,0,
+            1,1,1,1,1,
+            0,0,1,1,1,
+            0,0,1,1,0,
+            0,1,1,0,0,
+            1,1,0,0,0,
+        ]
+    },
+    moon: {
+        w:7, h:8, label:'\u263d',
+        data:[
+            0,0,1,1,1,0,0,
+            0,1,1,0,0,0,0,
+            1,1,0,0,0,0,0,
+            1,1,0,0,0,0,0,
+            1,1,0,0,0,0,0,
+            1,1,0,0,0,0,0,
+            0,1,1,0,0,0,0,
+            0,0,1,1,1,0,0,
+        ]
+    },
+    sun: {
+        w:9, h:9, label:'\u2600',
+        data:[
+            0,0,0,0,1,0,0,0,0,
+            1,0,0,0,1,0,0,0,1,
+            0,1,0,1,1,1,0,1,0,
+            0,0,1,1,1,1,1,0,0,
+            1,1,1,1,1,1,1,1,1,
+            0,0,1,1,1,1,1,0,0,
+            0,1,0,1,1,1,0,1,0,
+            1,0,0,0,1,0,0,0,1,
+            0,0,0,0,1,0,0,0,0,
+        ]
+    },
+    skull: {
+        w:8, h:8, label:'\ud83d\udc80',
+        data:[
+            0,1,1,1,1,1,1,0,
+            1,1,1,1,1,1,1,1,
+            1,1,0,1,1,0,1,1,
+            1,1,0,1,1,0,1,1,
+            1,1,1,1,1,1,1,1,
+            0,1,1,0,0,1,1,0,
+            0,1,0,1,1,0,1,0,
+            0,0,1,0,0,1,0,0,
+        ]
+    },
+    fire: {
+        w:7, h:8, label:'\ud83d\udd25',
+        data:[
+            0,0,0,1,0,0,0,
+            0,0,1,1,0,0,0,
+            0,0,1,1,1,0,0,
+            0,1,1,1,1,0,0,
+            0,1,1,0,1,1,0,
+            1,1,1,0,1,1,1,
+            1,1,1,1,1,1,1,
+            0,1,1,1,1,1,0,
+        ]
+    },
+};
+
+function initDoodleTab() {
+    if (doodleInited) return;
+    doodleInited = true;
+    buildColorPalette();
+    buildStampGrid();
+    setupCanvas();
+    loadDoodleDevices();
+    loadGallery();
+}
+
+function buildColorPalette() {
+    const grid = document.getElementById('color-grid');
+    grid.innerHTML = '';
+    PALETTE.forEach(c => {
+        const s = document.createElement('div');
+        s.className = 'color-swatch' + (c === doodleColor ? ' active' : '');
+        s.style.background = c;
+        s.onclick = () => selectDoodleColor(c);
+        grid.appendChild(s);
+    });
+    document.getElementById('custom-color').addEventListener('input', e => {
+        selectDoodleColor(e.target.value);
+    });
+}
+
+function selectDoodleColor(c) {
+    doodleColor = c;
+    doodleStamp = null;
+    document.querySelectorAll('.stamp-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.color-swatch').forEach(s => {
+        s.classList.toggle('active', s.style.background === c || rgbToHex(s.style.background) === c);
+    });
+}
+
+function rgbToHex(rgb) {
+    if (rgb.startsWith('#')) return rgb;
+    const m = rgb.match(/\d+/g);
+    if (!m) return rgb;
+    return '#' + m.slice(0,3).map(x => parseInt(x).toString(16).padStart(2,'0')).join('');
+}
+
+function buildStampGrid() {
+    const grid = document.getElementById('stamp-grid');
+    grid.innerHTML = '';
+    Object.entries(STAMPS).forEach(([key, st]) => {
+        const b = document.createElement('button');
+        b.className = 'stamp-btn';
+        b.textContent = st.label;
+        b.title = key;
+        b.onclick = () => {
+            if (doodleStamp === key) {
+                doodleStamp = null;
+                b.classList.remove('active');
+            } else {
+                doodleStamp = key;
+                document.querySelectorAll('.stamp-btn').forEach(x => x.classList.remove('active'));
+                b.classList.add('active');
+            }
+        };
+        grid.appendChild(b);
+    });
+}
+
+function setupCanvas() {
+    const canvas = document.getElementById('doodle-canvas');
+    canvas.width = CW * CELL;
+    canvas.height = CH * CELL;
+
+    document.querySelectorAll('.doodle-toolbar .tool-btn[data-tool]').forEach(btn => {
+        btn.onclick = () => {
+            doodleTool = btn.dataset.tool;
+            doodleStamp = null;
+            document.querySelectorAll('.stamp-btn').forEach(x => x.classList.remove('active'));
+            document.querySelectorAll('.tool-btn[data-tool]').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        };
+    });
+
+    canvas.addEventListener('mousedown', e => { doodleDown = true; onCanvasInteract(e, true); });
+    canvas.addEventListener('mousemove', e => { if (doodleDown) onCanvasInteract(e, false); });
+    canvas.addEventListener('mouseup', () => { doodleDown = false; finishShape(); });
+    canvas.addEventListener('mouseleave', () => { doodleDown = false; finishShape(); });
+
+    canvas.addEventListener('touchstart', e => { e.preventDefault(); doodleDown = true; onCanvasInteract(e.touches[0], true); }, {passive:false});
+    canvas.addEventListener('touchmove', e => { e.preventDefault(); if (doodleDown) onCanvasInteract(e.touches[0], false); }, {passive:false});
+    canvas.addEventListener('touchend', e => { e.preventDefault(); doodleDown = false; finishShape(); }, {passive:false});
+
+    renderCanvas();
+}
+
+function getCellCoords(e) {
+    const canvas = document.getElementById('doodle-canvas');
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = Math.floor((e.clientX - rect.left) * scaleX / CELL);
+    const y = Math.floor((e.clientY - rect.top) * scaleY / CELL);
+    return [Math.max(0, Math.min(CW-1, x)), Math.max(0, Math.min(CH-1, y))];
+}
+
+function pushHistory() {
+    doodleHistory.push([...doodlePixels]);
+    if (doodleHistory.length > 30) doodleHistory.shift();
+}
+
+function onCanvasInteract(e, isDown) {
+    const [x, y] = getCellCoords(e);
+
+    if (doodleStamp && isDown) {
+        placeStamp(x, y);
+        return;
+    }
+
+    if (doodleTool === 'pencil') {
+        if (isDown) pushHistory();
+        setPixel(x, y, doodleColor);
+        renderCanvas();
+    } else if (doodleTool === 'eraser') {
+        if (isDown) pushHistory();
+        setPixel(x, y, '#000000');
+        renderCanvas();
+    } else if (doodleTool === 'fill' && isDown) {
+        pushHistory();
+        floodFill(x, y, doodleColor);
+        renderCanvas();
+    } else if (doodleTool === 'line' && isDown) {
+        if (!doodleLineStart) {
+            pushHistory();
+            doodleLineStart = [x, y];
+        } else {
+            drawLine(doodleLineStart[0], doodleLineStart[1], x, y, doodleColor);
+            doodleLineStart = null;
+            renderCanvas();
+        }
+    } else if (doodleTool === 'rect' && isDown) {
+        if (!doodleLineStart) {
+            pushHistory();
+            doodleLineStart = [x, y];
+        } else {
+            drawRect(doodleLineStart[0], doodleLineStart[1], x, y, doodleColor);
+            doodleLineStart = null;
+            renderCanvas();
+        }
+    }
+}
+
+function finishShape() {
+    doodleLineStart = null;
+}
+
+function setPixel(x, y, color) {
+    if (x >= 0 && x < CW && y >= 0 && y < CH) {
+        doodlePixels[y * CW + x] = color;
+    }
+}
+
+function getPixel(x, y) {
+    if (x >= 0 && x < CW && y >= 0 && y < CH) return doodlePixels[y * CW + x];
+    return null;
+}
+
+function floodFill(sx, sy, fillColor) {
+    const target = getPixel(sx, sy);
+    if (target === fillColor) return;
+    const stack = [[sx, sy]];
+    while (stack.length) {
+        const [cx, cy] = stack.pop();
+        if (cx < 0 || cx >= CW || cy < 0 || cy >= CH) continue;
+        if (getPixel(cx, cy) !== target) continue;
+        setPixel(cx, cy, fillColor);
+        stack.push([cx+1,cy],[cx-1,cy],[cx,cy+1],[cx,cy-1]);
+    }
+}
+
+function drawLine(x0, y0, x1, y1, color) {
+    const dx = Math.abs(x1-x0), dy = Math.abs(y1-y0);
+    const sx = x0<x1?1:-1, sy = y0<y1?1:-1;
+    let err = dx - dy;
+    while (true) {
+        setPixel(x0, y0, color);
+        if (x0===x1 && y0===y1) break;
+        const e2 = 2*err;
+        if (e2 > -dy) { err -= dy; x0 += sx; }
+        if (e2 < dx) { err += dx; y0 += sy; }
+    }
+}
+
+function drawRect(x0, y0, x1, y1, color) {
+    const minX = Math.min(x0,x1), maxX = Math.max(x0,x1);
+    const minY = Math.min(y0,y1), maxY = Math.max(y0,y1);
+    for (let x=minX;x<=maxX;x++) { setPixel(x,minY,color); setPixel(x,maxY,color); }
+    for (let y=minY;y<=maxY;y++) { setPixel(minX,y,color); setPixel(maxX,y,color); }
+}
+
+function placeStamp(cx, cy) {
+    const st = STAMPS[doodleStamp];
+    if (!st) return;
+    pushHistory();
+    const ox = cx - Math.floor(st.w/2);
+    const oy = cy - Math.floor(st.h/2);
+    for (let sy=0; sy<st.h; sy++) {
+        for (let sx=0; sx<st.w; sx++) {
+            if (st.data[sy*st.w+sx]) {
+                setPixel(ox+sx, oy+sy, doodleColor);
+            }
+        }
+    }
+    renderCanvas();
+}
+
+function renderCanvas() {
+    const canvas = document.getElementById('doodle-canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    for (let y=0; y<CH; y++) {
+        for (let x=0; x<CW; x++) {
+            ctx.fillStyle = doodlePixels[y*CW+x];
+            ctx.fillRect(x*CELL, y*CELL, CELL, CELL);
+        }
+    }
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+    ctx.lineWidth = 1;
+    for (let x=0; x<=CW; x++) { ctx.beginPath(); ctx.moveTo(x*CELL, 0); ctx.lineTo(x*CELL, CH*CELL); ctx.stroke(); }
+    for (let y=0; y<=CH; y++) { ctx.beginPath(); ctx.moveTo(0, y*CELL); ctx.lineTo(CW*CELL, y*CELL); ctx.stroke(); }
+
+    renderPreview();
+}
+
+function renderPreview() {
+    const pc = document.getElementById('doodle-preview-canvas');
+    const ctx = pc.getContext('2d');
+    const imgData = ctx.createImageData(CW, CH);
+    for (let i=0; i<CW*CH; i++) {
+        const c = doodlePixels[i];
+        const r = parseInt(c.slice(1,3),16);
+        const g = parseInt(c.slice(3,5),16);
+        const b = parseInt(c.slice(5,7),16);
+        imgData.data[i*4]   = r;
+        imgData.data[i*4+1] = g;
+        imgData.data[i*4+2] = b;
+        imgData.data[i*4+3] = 255;
+    }
+    ctx.putImageData(imgData, 0, 0);
+}
+
+function doodleUndo() {
+    if (doodleHistory.length === 0) return;
+    doodlePixels = doodleHistory.pop();
+    renderCanvas();
+}
+
+function doodleClear() {
+    pushHistory();
+    doodlePixels.fill('#000000');
+    renderCanvas();
+}
+
+function hexToRgb565(hex) {
+    const r = parseInt(hex.slice(1,3),16);
+    const g = parseInt(hex.slice(3,5),16);
+    const b = parseInt(hex.slice(5,7),16);
+    return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+}
+
+function pixelsToBase64() {
+    const buf = new ArrayBuffer(CW * CH * 2);
+    const view = new DataView(buf);
+    for (let i=0; i<CW*CH; i++) {
+        view.setUint16(i*2, hexToRgb565(doodlePixels[i]), true);
+    }
+    const bytes = new Uint8Array(buf);
+    let binary = '';
+    for (let i=0; i<bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary);
+}
+
+function base64ToPixels(b64) {
+    const binary = atob(b64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i=0; i<binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const view = new DataView(bytes.buffer);
+    const px = [];
+    for (let i=0; i<CW*CH; i++) {
+        const rgb565 = view.getUint16(i*2, true);
+        const r = ((rgb565 >> 11) & 0x1F) << 3;
+        const g = ((rgb565 >> 5)  & 0x3F) << 2;
+        const b = (rgb565 & 0x1F) << 3;
+        px.push('#' + [r,g,b].map(v => v.toString(16).padStart(2,'0')).join(''));
+    }
+    return px;
+}
+
+async function loadDoodleDevices() {
+    const sel = document.getElementById('doodle-device');
+    try {
+        const res = await fetch(API_BASE + '/api/devices', {
+            headers: { 'Authorization': 'Bearer ' + authToken },
+        });
+        const devices = await res.json();
+        sel.innerHTML = '<option value="">Select device</option>';
+        devices.forEach(d => {
+            sel.innerHTML += `<option value="${d.id}">${d.name || d.mac_address}${d.online ? ' (online)' : ''}</option>`;
+        });
+    } catch { sel.innerHTML = '<option value="">No devices</option>'; }
+}
+
+function setDoodleStatus(msg, type) {
+    const el = document.getElementById('doodle-status');
+    el.textContent = msg;
+    el.className = 'doodle-status' + (type ? ' ' + type : '');
+    if (msg) setTimeout(() => { if (el.textContent === msg) el.textContent = ''; }, 4000);
+}
+
+async function sendDoodleToDevice() {
+    const deviceId = document.getElementById('doodle-device').value;
+    if (!deviceId) { setDoodleStatus('Select a device first', 'error'); return; }
+
+    const b64 = pixelsToBase64();
+    try {
+        const res = await fetch(API_BASE + '/api/canvas/send/' + deviceId, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+            body: JSON.stringify({ pixel_data: b64 }),
+        });
+        if (!res.ok) { const d = await res.json(); throw new Error(d.detail); }
+        setDoodleStatus('Sent to device! Press side button (B) to view.', 'success');
+    } catch (err) {
+        setDoodleStatus(err.message || 'Failed to send', 'error');
+    }
+}
+
+async function saveDoodle() {
+    const name = prompt('Name your doodle:', 'My Doodle');
+    if (!name) return;
+    const b64 = pixelsToBase64();
+    try {
+        const res = await fetch(API_BASE + '/api/canvas', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+            body: JSON.stringify({ name, pixel_data: b64 }),
+        });
+        if (!res.ok) { const d = await res.json(); throw new Error(d.detail); }
+        setDoodleStatus('Saved!', 'success');
+        loadGallery();
+    } catch (err) {
+        setDoodleStatus(err.message || 'Failed to save', 'error');
+    }
+}
+
+async function loadGallery() {
+    const list = document.getElementById('gallery-list');
+    try {
+        const res = await fetch(API_BASE + '/api/canvas', {
+            headers: { 'Authorization': 'Bearer ' + authToken },
+        });
+        const items = await res.json();
+        if (items.length === 0) {
+            list.innerHTML = '<div style="color:var(--text-muted);font-size:12px">No saved doodles yet.</div>';
+            return;
+        }
+        list.innerHTML = items.map(item => `
+            <div class="gallery-item">
+                <span onclick="loadDoodle('${item.pixel_data}')">${item.name}</span>
+                <button onclick="deleteDoodle(${item.id})" title="Delete">&times;</button>
+            </div>
+        `).join('');
+    } catch { list.innerHTML = '<div style="color:var(--text-muted);font-size:12px">Failed to load.</div>'; }
+}
+
+function loadDoodle(b64) {
+    pushHistory();
+    doodlePixels = base64ToPixels(b64);
+    renderCanvas();
+    setDoodleStatus('Loaded from gallery', 'success');
+}
+
+async function deleteDoodle(id) {
+    try {
+        await fetch(API_BASE + '/api/canvas/' + id, {
+            method: 'DELETE',
+            headers: { 'Authorization': 'Bearer ' + authToken },
+        });
+        loadGallery();
+    } catch {}
+}
+
+// ── Init ──
+if (authToken) {
+    showDashboard();
+}
+</script>
+</body>
+</html>

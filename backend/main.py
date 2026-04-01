@@ -19,7 +19,8 @@ from typing import Optional
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException, UploadFile, File, Form, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -1062,6 +1063,15 @@ async def ws_user(websocket: WebSocket):
         print(f"User WebSocket disconnected: user_id={user_id}")
 
 
-@app.get("/")
-async def root():
-    return {"status": "XIAO Audio Platform running"}
+import os
+portal_dir = os.path.join(os.path.dirname(__file__), "portal")
+if os.path.isdir(portal_dir):
+    app.mount("/portal", StaticFiles(directory=portal_dir, html=True), name="portal")
+
+    @app.get("/")
+    async def root():
+        return FileResponse(os.path.join(portal_dir, "index.html"))
+else:
+    @app.get("/")
+    async def root():
+        return {"status": "XIAO Audio Platform running"}
