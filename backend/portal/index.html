@@ -962,6 +962,13 @@ async function viewSession(id) {
 
         let html = '';
 
+        if (data.has_audio) {
+            html += `<div class="detail-section">
+                <h4>Recording</h4>
+                <audio controls src="${API_BASE}/api/sessions/${id}/audio?token=${encodeURIComponent(authToken)}" style="width:100%"></audio>
+            </div>`;
+        }
+
         if (data.transcript) {
             html += `<div class="detail-section">
                 <h4>Transcript</h4>

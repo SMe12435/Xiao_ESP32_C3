@@ -53,6 +53,7 @@ class Session(Base):
     started_at = Column(DateTime, default=datetime.utcnow)
     ended_at = Column(DateTime, nullable=True)
     status = Column(SAEnum(SessionStatus), default=SessionStatus.STREAMING)
+    audio_file = Column(String(255), nullable=True)
 
     device = relationship("Device", back_populates="sessions")
     user = relationship("User", back_populates="sessions")

@@ -284,6 +284,9 @@ async def update_device_wifi(
 FIRMWARE_DIR = os.path.join(os.path.dirname(__file__), "firmware")
 os.makedirs(FIRMWARE_DIR, exist_ok=True)
 
+RECORDINGS_DIR = os.path.join(os.path.dirname(__file__), "recordings")
+os.makedirs(RECORDINGS_DIR, exist_ok=True)
+
 
 async def authenticate_device(token: str, mac: str, db: AsyncSession) -> Device:
     result = await db.execute(
@@ -434,6 +437,7 @@ async def list_sessions(user: User = Depends(get_current_user), db: AsyncSession
             "started_at": str(s.started_at),
             "ended_at": str(s.ended_at) if s.ended_at else None,
             "status": s.status.value,
+            "has_audio": bool(s.audio_file),
         }
         for s in sessions
     ]
@@ -465,12 +469,51 @@ async def get_session(session_id: int, user: User = Depends(get_current_user), d
         "started_at": str(session.started_at),
         "ended_at": str(session.ended_at) if session.ended_at else None,
         "status": session.status.value,
+        "has_audio": bool(session.audio_file),
         "transcript": " ".join(t.text for t in transcriptions),
         "notes": [
             {"id": n.id, "type": n.type.value, "content": n.content}
             for n in notes
         ],
     }
+
+
+@app.get("/api/sessions/{session_id}/audio")
+async def get_session_audio(
+    session_id: int,
+    request: Request,
+    token: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    from jose import jwt, JWTError
+    from config import JWT_SECRET, JWT_ALGORITHM
+
+    auth_token = token
+    if not auth_token:
+        auth_header = request.headers.get("authorization", "")
+        if auth_header.startswith("Bearer "):
+            auth_token = auth_header[7:]
+    if not auth_token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    try:
+        payload = jwt.decode(auth_token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        user_id = int(payload.get("sub"))
+    except (JWTError, ValueError, TypeError):
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    result = await db.execute(
+        select(Session).where(Session.id == session_id, Session.user_id == user_id)
+    )
+    session = result.scalar_one_or_none()
+    if not session or not session.audio_file:
+        raise HTTPException(status_code=404, detail="Audio not found")
+
+    wav_path = os.path.join(RECORDINGS_DIR, session.audio_file)
+    if not os.path.exists(wav_path):
+        raise HTTPException(status_code=404, detail="Audio file missing from disk")
+
+    return FileResponse(wav_path, media_type="audio/wav", filename=session.audio_file)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -855,12 +898,27 @@ async def ws_device(websocket: WebSocket):
                     uid = user_id
 
                     async def process_session():
+                        wav_filename = f"session_{sid}.wav"
+                        wav_path = os.path.join(RECORDINGS_DIR, wav_filename)
+                        try:
+                            with wave.open(wav_path, 'wb') as wf:
+                                wf.setnchannels(1)
+                                wf.setsampwidth(2)
+                                wf.setframerate(sample_rate)
+                                wf.writeframes(pcm_copy)
+                            print(f"Saved recording: {wav_path}")
+                        except Exception as e:
+                            print(f"Failed to save WAV: {e}")
+                            wav_filename = None
+
                         async with async_session() as db:
                             s = await db.execute(select(Session).where(Session.id == sid))
                             session = s.scalar_one_or_none()
                             if session:
                                 session.ended_at = datetime.utcnow()
                                 session.status = SessionStatus.PROCESSING
+                                if wav_filename:
+                                    session.audio_file = wav_filename
                                 await db.commit()
 
                         transcript = await run_transcription(sid, uid, bytearray(pcm_copy), sample_rate)
@@ -951,12 +1009,27 @@ async def ws_device(websocket: WebSocket):
             sr = sample_rate
 
             async def process_disconnected_session():
+                wav_filename = f"session_{sid}.wav"
+                wav_path = os.path.join(RECORDINGS_DIR, wav_filename)
+                try:
+                    with wave.open(wav_path, 'wb') as wf:
+                        wf.setnchannels(1)
+                        wf.setsampwidth(2)
+                        wf.setframerate(sr)
+                        wf.writeframes(pcm_copy)
+                    print(f"Saved recording: {wav_path}")
+                except Exception as e:
+                    print(f"Failed to save WAV: {e}")
+                    wav_filename = None
+
                 async with async_session() as db:
                     s = await db.execute(select(Session).where(Session.id == sid))
                     session = s.scalar_one_or_none()
                     if session:
                         session.ended_at = datetime.utcnow()
                         session.status = SessionStatus.PROCESSING
+                        if wav_filename:
+                            session.audio_file = wav_filename
                         await db.commit()
 
                 transcript = await run_transcription(sid, uid, bytearray(pcm_copy), sr)
