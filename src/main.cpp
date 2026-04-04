@@ -1304,18 +1304,15 @@ void loop() {
                 adpcm.idx = 0;
                 dcOffset = 0;
 
-                // Let WiFi stack settle before sending binary
                 wsClient.poll();
-                delay(50);
+                delay(20);
 
-                // Send start marker (8 bytes)
-                uint8_t hdr[8];
-                uint32_t sr = SAMPLE_RATE;
-                uint32_t marker = 1;
-                memcpy(hdr, &sr, 4);
-                memcpy(hdr + 4, &marker, 4);
-                bool sent = wsClient.sendBinary((const char*)hdr, sizeof(hdr));
-                Serial.printf("[STREAM] Start marker sent=%d, heap=%u\n",
+                // Send start as JSON text (avoids binary framing issues on C3)
+                char startMsg[64];
+                snprintf(startMsg, sizeof(startMsg),
+                    "{\"type\":\"stream_start\",\"sr\":%d}", SAMPLE_RATE);
+                bool sent = wsClient.send(startMsg);
+                Serial.printf("[STREAM] Start sent=%d, heap=%u\n",
                     sent, (unsigned)ESP.getFreeHeap());
 
                 if (!sent || !wsConnected) {
@@ -1323,12 +1320,11 @@ void loop() {
                     break;
                 }
 
-                // Give server time to process before we start pumping audio
-                delay(100);
+                delay(50);
                 wsClient.poll();
 
                 if (!wsConnected) {
-                    Serial.println("[STREAM] Connection lost after start marker");
+                    Serial.println("[STREAM] Connection lost after start");
                     break;
                 }
 
@@ -1370,8 +1366,7 @@ void loop() {
         if (checkButton()) {
             i2s_stop(I2S_NUM_0);
             delay(100);
-            uint8_t eot[4] = { 0xFF, 0xFF, 0xFF, 0xFF };
-            wsClient.sendBinary((const char*)eot, sizeof(eot));
+            wsClient.send("{\"type\":\"stream_stop\"}");
             unsigned long elapsed = (millis() - streamStartMs) / 1000;
             Serial.printf("[STREAM] Stopped after %lus\n", elapsed);
             i2s_start(I2S_NUM_0);

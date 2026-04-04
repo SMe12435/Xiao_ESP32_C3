@@ -877,72 +877,121 @@ async def ws_device(websocket: WebSocket):
     try:
         while True:
             message = await websocket.receive()
-            if message.get("type") == "websocket.disconnect":
+            msg_type = message.get("type", "")
+            if msg_type == "websocket.disconnect":
                 break
-            data = message.get("bytes") or message.get("text", "").encode("latin-1")
+
+            # Handle JSON text commands (stream_start / stream_stop)
+            if "text" in message and message["text"]:
+                try:
+                    cmd = json.loads(message["text"])
+                except json.JSONDecodeError:
+                    continue
+
+                if cmd.get("type") == "stream_start":
+                    sample_rate = cmd.get("sr", 16000)
+                    decoder.reset()
+                    audio_pcm = bytearray()
+                    chunk_count = 0
+                    streaming = True
+
+                    async with async_session() as db:
+                        session = Session(
+                            device_id=device_id,
+                            user_id=user_id,
+                            status=SessionStatus.STREAMING,
+                        )
+                        db.add(session)
+                        await db.commit()
+                        await db.refresh(session)
+                        current_session_id = session.id
+
+                    await notify_user(user_id, {
+                        "type": "stream_start",
+                        "session_id": current_session_id,
+                        "sample_rate": sample_rate,
+                    })
+
+                    print(f"Stream started: {sample_rate} Hz, session_id={current_session_id}")
+
+                elif cmd.get("type") == "stream_stop":
+                    if streaming:
+                        duration = len(audio_pcm) / 2 / sample_rate
+                        print(f"\nStream ended: {len(audio_pcm)} bytes ({duration:.1f}s), {chunk_count} chunks")
+                        streaming = False
+
+                        await notify_user(user_id, {
+                            "type": "stream_end",
+                            "session_id": current_session_id,
+                            "duration": round(duration, 1),
+                            "chunks": chunk_count,
+                        })
+
+                        pcm_copy = bytes(audio_pcm)
+                        sid = current_session_id
+                        uid = user_id
+
+                        async def process_session():
+                            wav_filename = f"session_{sid}.wav"
+                            wav_path = os.path.join(RECORDINGS_DIR, wav_filename)
+                            try:
+                                with wave.open(wav_path, 'wb') as wf:
+                                    wf.setnchannels(1)
+                                    wf.setsampwidth(2)
+                                    wf.setframerate(sample_rate)
+                                    wf.writeframes(pcm_copy)
+                                print(f"Saved recording: {wav_path}")
+                            except Exception as e:
+                                print(f"Failed to save WAV: {e}")
+                                wav_filename = None
+
+                            async with async_session() as db:
+                                s = await db.execute(select(Session).where(Session.id == sid))
+                                session = s.scalar_one_or_none()
+                                if session:
+                                    session.ended_at = datetime.utcnow()
+                                    session.status = SessionStatus.PROCESSING
+                                    if wav_filename:
+                                        session.audio_file = wav_filename
+                                    await db.commit()
+
+                            transcript = await run_transcription(sid, uid, bytearray(pcm_copy), sample_rate)
+                            if transcript:
+                                await run_llm_processing(sid, uid, transcript)
+                            else:
+                                async with async_session() as db:
+                                    s = await db.execute(select(Session).where(Session.id == sid))
+                                    session = s.scalar_one_or_none()
+                                    if session:
+                                        session.status = SessionStatus.DONE
+                                        await db.commit()
+
+                        asyncio.create_task(process_session())
+                        audio_pcm = bytearray()
+                continue
+
+            # Handle binary audio data
+            data = message.get("bytes")
             if not data:
                 continue
 
-            # Stop sentinel: 0xFFFFFFFF
+            # Legacy binary stop sentinel (0xFFFFFFFF)
             if len(data) == 4 and data == b'\xff\xff\xff\xff':
                 if streaming:
                     duration = len(audio_pcm) / 2 / sample_rate
-                    print(f"\nStream ended: {len(audio_pcm)} bytes ({duration:.1f}s), {chunk_count} chunks")
+                    print(f"\nStream ended (legacy): {len(audio_pcm)} bytes ({duration:.1f}s)")
                     streaming = False
-
                     await notify_user(user_id, {
                         "type": "stream_end",
                         "session_id": current_session_id,
                         "duration": round(duration, 1),
                         "chunks": chunk_count,
                     })
-
-                    # Process in background: transcribe then LLM
-                    pcm_copy = bytes(audio_pcm)
-                    sid = current_session_id
-                    uid = user_id
-
-                    async def process_session():
-                        wav_filename = f"session_{sid}.wav"
-                        wav_path = os.path.join(RECORDINGS_DIR, wav_filename)
-                        try:
-                            with wave.open(wav_path, 'wb') as wf:
-                                wf.setnchannels(1)
-                                wf.setsampwidth(2)
-                                wf.setframerate(sample_rate)
-                                wf.writeframes(pcm_copy)
-                            print(f"Saved recording: {wav_path}")
-                        except Exception as e:
-                            print(f"Failed to save WAV: {e}")
-                            wav_filename = None
-
-                        async with async_session() as db:
-                            s = await db.execute(select(Session).where(Session.id == sid))
-                            session = s.scalar_one_or_none()
-                            if session:
-                                session.ended_at = datetime.utcnow()
-                                session.status = SessionStatus.PROCESSING
-                                if wav_filename:
-                                    session.audio_file = wav_filename
-                                await db.commit()
-
-                        transcript = await run_transcription(sid, uid, bytearray(pcm_copy), sample_rate)
-                        if transcript:
-                            await run_llm_processing(sid, uid, transcript)
-                        else:
-                            async with async_session() as db:
-                                s = await db.execute(select(Session).where(Session.id == sid))
-                                session = s.scalar_one_or_none()
-                                if session:
-                                    session.status = SessionStatus.DONE
-                                    await db.commit()
-
-                    asyncio.create_task(process_session())
                     audio_pcm = bytearray()
                 continue
 
-            # Start marker: 8 bytes [sample_rate:u32, 0x00000001:u32]
-            if len(data) == 8:
+            # Legacy binary start marker (8 bytes)
+            if not streaming and len(data) == 8:
                 sr, marker = struct.unpack('<II', data)
                 if marker == 1:
                     sample_rate = sr
@@ -967,8 +1016,7 @@ async def ws_device(websocket: WebSocket):
                         "session_id": current_session_id,
                         "sample_rate": sample_rate,
                     })
-
-                    print(f"Stream started: {sample_rate} Hz, session_id={current_session_id}")
+                    print(f"Stream started (legacy): {sample_rate} Hz, session_id={current_session_id}")
                     continue
 
             if not streaming:
