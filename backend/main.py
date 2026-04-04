@@ -876,7 +876,12 @@ async def ws_device(websocket: WebSocket):
 
     try:
         while True:
-            data = await websocket.receive_bytes()
+            message = await websocket.receive()
+            if message.get("type") == "websocket.disconnect":
+                break
+            data = message.get("bytes") or message.get("text", "").encode("latin-1")
+            if not data:
+                continue
 
             # Stop sentinel: 0xFFFFFFFF
             if len(data) == 4 and data == b'\xff\xff\xff\xff':
