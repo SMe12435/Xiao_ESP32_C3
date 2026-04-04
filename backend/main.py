@@ -649,15 +649,20 @@ async def upload_wav(request: Request, db: AsyncSession = Depends(get_db)):
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid WAV file")
 
-    session = Session(
-        device_id=device.id,
-        user_id=device.user_id,
-        status=SessionStatus.PROCESSING,
-        ended_at=datetime.utcnow(),
-    )
-    db.add(session)
-    await db.commit()
-    await db.refresh(session)
+    try:
+        session = Session(
+            device_id=device.id,
+            user_id=device.user_id,
+            status=SessionStatus.PROCESSING,
+            ended_at=datetime.utcnow(),
+        )
+        db.add(session)
+        await db.commit()
+        await db.refresh(session)
+    except Exception as e:
+        print(f"[UPLOAD] Session create failed: {type(e).__name__}: {e}")
+        import traceback; traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Database error: {e}")
 
     sid = session.id
     uid = device.user_id
@@ -677,6 +682,41 @@ async def upload_wav(request: Request, db: AsyncSession = Depends(get_db)):
     asyncio.create_task(process_uploaded())
 
     return {"status": "accepted", "session_id": session.id}
+
+
+# ═══════════════════════════════════════════════════════════════
+# Debug: Database Health Check
+# ═══════════════════════════════════════════════════════════════
+
+@app.get("/api/debug/db")
+async def debug_db():
+    """Check database tables and columns for schema issues."""
+    from sqlalchemy import text as sa_text
+    info = {}
+    try:
+        async with async_session() as db:
+            for tbl in ["users", "devices", "sessions", "transcriptions", "notes", "firmware_versions", "canvas_art"]:
+                try:
+                    result = await db.execute(sa_text(f"PRAGMA table_info({tbl})"))
+                    cols = [{"name": r[1], "type": r[2], "notnull": r[3]} for r in result.fetchall()]
+                    info[tbl] = {"columns": [c["name"] for c in cols], "detail": cols}
+                except Exception as e:
+                    info[tbl] = {"error": str(e)}
+            # Try creating a test session
+            try:
+                s = Session(device_id=1, user_id=1, status=SessionStatus.STREAMING)
+                db.add(s)
+                await db.commit()
+                await db.refresh(s)
+                test_id = s.id
+                await db.delete(s)
+                await db.commit()
+                info["_test_session_insert"] = {"ok": True, "id": test_id}
+            except Exception as e:
+                info["_test_session_insert"] = {"ok": False, "error": str(e)}
+    except Exception as e:
+        info["_connection"] = {"error": str(e)}
+    return info
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -894,23 +934,31 @@ async def ws_device(websocket: WebSocket):
                     audio_pcm = bytearray()
                     chunk_count = 0
                     streaming = True
+                    current_session_id = None
 
-                    async with async_session() as db:
-                        session = Session(
-                            device_id=device_id,
-                            user_id=user_id,
-                            status=SessionStatus.STREAMING,
-                        )
-                        db.add(session)
-                        await db.commit()
-                        await db.refresh(session)
-                        current_session_id = session.id
+                    try:
+                        async with async_session() as db:
+                            session = Session(
+                                device_id=device_id,
+                                user_id=user_id,
+                                status=SessionStatus.STREAMING,
+                            )
+                            db.add(session)
+                            await db.commit()
+                            await db.refresh(session)
+                            current_session_id = session.id
+                    except Exception as db_err:
+                        print(f"[ERROR] Session create failed: {type(db_err).__name__}: {db_err}")
+                        import traceback; traceback.print_exc()
 
-                    await notify_user(user_id, {
-                        "type": "stream_start",
-                        "session_id": current_session_id,
-                        "sample_rate": sample_rate,
-                    })
+                    try:
+                        await notify_user(user_id, {
+                            "type": "stream_start",
+                            "session_id": current_session_id,
+                            "sample_rate": sample_rate,
+                        })
+                    except Exception as notify_err:
+                        print(f"[ERROR] notify_user failed: {notify_err}")
 
                     print(f"Stream started: {sample_rate} Hz, session_id={current_session_id}")
 
@@ -999,23 +1047,32 @@ async def ws_device(websocket: WebSocket):
                     audio_pcm = bytearray()
                     chunk_count = 0
                     streaming = True
+                    current_session_id = None
 
-                    async with async_session() as db:
-                        session = Session(
-                            device_id=device_id,
-                            user_id=user_id,
-                            status=SessionStatus.STREAMING,
-                        )
-                        db.add(session)
-                        await db.commit()
-                        await db.refresh(session)
-                        current_session_id = session.id
+                    try:
+                        async with async_session() as db:
+                            session = Session(
+                                device_id=device_id,
+                                user_id=user_id,
+                                status=SessionStatus.STREAMING,
+                            )
+                            db.add(session)
+                            await db.commit()
+                            await db.refresh(session)
+                            current_session_id = session.id
+                    except Exception as db_err:
+                        print(f"[ERROR] Session create failed (legacy): {type(db_err).__name__}: {db_err}")
+                        import traceback; traceback.print_exc()
 
-                    await notify_user(user_id, {
-                        "type": "stream_start",
-                        "session_id": current_session_id,
-                        "sample_rate": sample_rate,
-                    })
+                    try:
+                        await notify_user(user_id, {
+                            "type": "stream_start",
+                            "session_id": current_session_id,
+                            "sample_rate": sample_rate,
+                        })
+                    except Exception as notify_err:
+                        print(f"[ERROR] notify_user failed: {notify_err}")
+
                     print(f"Stream started (legacy): {sample_rate} Hz, session_id={current_session_id}")
                     continue
 
